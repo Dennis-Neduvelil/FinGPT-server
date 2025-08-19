@@ -1,6 +1,12 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import * as jwt from 'jsonwebtoken';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * Guard to protect routes with JWT authentication.
@@ -9,6 +15,7 @@ import * as jwt from 'jsonwebtoken';
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  constructor(private config: ConfigService) {}
   /**
    * Determines whether the current request is allowed.
    * @param context The execution context of the request.
@@ -33,7 +40,7 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       // Verify token and attach decoded payload to request
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+      const decoded = jwt.verify(token, this.config.get<string>('JWT_SECRET'));
       request.user = decoded;
       return true;
     } catch (error) {

@@ -52,3 +52,12 @@ export class SignUpDto {
   @IsNotEmpty()
   fullName: string;
 }
+
+/**
+ * DTO for signing up a new user
+ */
+export class GoogleAuthDto {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+}

@@ -1,1 +1,1 @@
-
+export * from './AuthResult.type';

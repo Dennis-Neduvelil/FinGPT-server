@@ -1,32 +1,55 @@
 import { Injectable } from '@nestjs/common';
-import { SignInDto, SignUpDto } from '../dto';
+import { SignInDto, SignUpDto, GoogleAuthDto } from '../dto';
 import * as argon2 from 'argon2';
 import { AuthRepository } from '../repository';
-import { InvalidCredentialException, UserNotFoundException } from '../exceptions';
+import {
+  EmailAssociatedWithSocialLoginException,
+  InvalidCredentialException,
+  UserNotFoundException,
+} from '../exceptions';
 import { JwtService } from '../utils/jwt/jwt.service';
+import { AuthResult } from 'src/types';
+import { GoogleService } from './google.service';
 
 interface IAuthService {
-  signIn(dto: SignInDto): Promise<{ userId: string; token: string }>;
-  signUp(dto: SignUpDto): Promise<{ userId: string; email: string }>;
+  signIn(dto: SignInDto): AuthResult;
+  signUp(dto: SignUpDto): AuthResult;
+  googleAuth(dto: GoogleAuthDto): AuthResult;
 }
 
 @Injectable()
 export class AuthService implements IAuthService {
   constructor(
     private readonly authRepository: AuthRepository,
-    private readonly jwtService: JwtService, // renamed for clarity
+    private readonly jwtService: JwtService,
+    private readonly googleService: GoogleService,
   ) {}
+
+  /**
+   * Generates a signed JSON Web Token (JWT) for the given user.
+   *
+   * @private
+   * @param {string} userId - The unique identifier of the user for whom the token is issued.
+   * @returns {string} A signed JWT containing the userId as payload, valid for 30 days.
+   */
+  private signJwt(userId: string): string {
+    return this.jwtService.signJwt({ userId }, '30d');
+  }
 
   /**
    * Signs in a user with email and password.
    * @param dto SignInDto
    * @returns object containing userId and JWT token
    */
-  async signIn(dto: SignInDto): Promise<{ userId: string; token: string }> {
+  async signIn(
+    dto: SignInDto,
+  ): Promise<{ userId: string; accessToken: string }> {
     const user = await this.authRepository.signIn(dto);
-
     if (!user) {
       throw new UserNotFoundException();
+    }
+    if (user.provider !== 'LOCAL') {
+      throw new EmailAssociatedWithSocialLoginException();
     }
 
     const isPasswordValid = await argon2.verify(user.password, dto.password);
@@ -34,12 +57,8 @@ export class AuthService implements IAuthService {
       throw new InvalidCredentialException();
     }
 
-    const token = this.jwtService.signJwt(
-      { userId: user.id }, // wrap payload as object
-      '30d', // consider using config or constants for expiry
-    );
-
-    return { userId: user.id, token };
+    const accessToken = this.signJwt(user.id);
+    return { userId: user.id, accessToken };
   }
 
   /**
@@ -47,13 +66,35 @@ export class AuthService implements IAuthService {
    * @param dto SignUpDto
    * @returns object containing new user's ID and email
    */
-  async signUp(dto: SignUpDto): Promise<{ userId: string; email: string }> {
+  async signUp(
+    dto: SignUpDto,
+  ): Promise<{ userId: string; accessToken: string }> {
     const hashedPassword = await argon2.hash(dto.password);
     const newUser = await this.authRepository.signUp({
       ...dto,
       password: hashedPassword,
     });
+    const accessToken = this.signJwt(newUser.id);
+    return { userId: newUser.id, accessToken };
+  }
 
-    return { userId: newUser.id, email: newUser.email };
+  /**
+   * Login/SignUp Via Google.
+   * @param dto GoogleAuthDto
+   * @returns object containing new user's ID and email
+   */
+  async googleAuth(
+    dto: GoogleAuthDto,
+  ): Promise<{ userId: string; accessToken: string }> {
+    const token = await this.googleService.getTokens(dto.code);
+    const data = {
+      fullName: token.user.given_name,
+      email: token.user.email,
+      googleId: token.user.id,
+      profilePic: token.user.picture,
+    };
+    const newUser = await this.authRepository.googleAuth(data);
+    const accessToken = this.signJwt(newUser.id);
+    return { userId: newUser.id, accessToken };
   }
 }
