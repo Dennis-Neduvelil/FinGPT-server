@@ -10,6 +10,7 @@ import {
 import { JwtService } from '../utils/jwt/jwt.service';
 import { AuthResult } from 'src/types';
 import { GoogleService } from './google.service';
+import { ConfigService } from '@nestjs/config';
 
 interface IAuthService {
   signIn(dto: SignInDto): AuthResult;
@@ -23,6 +24,7 @@ export class AuthService implements IAuthService {
     private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly googleService: GoogleService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -33,7 +35,10 @@ export class AuthService implements IAuthService {
    * @returns {string} A signed JWT containing the userId as payload, valid for 30 days.
    */
   private signJwt(userId: string): string {
-    return this.jwtService.signJwt({ userId }, '30d');
+    return this.jwtService.signJwt(
+      { userId },
+      this.config.get<string>('JWT_TOKEN_AGE'),
+    );
   }
 
   /**

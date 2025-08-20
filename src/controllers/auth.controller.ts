@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  ForbiddenException,
-  HttpException,
-  HttpStatus,
-  HttpCode,
-} from '@nestjs/common';
+import { Controller, Post, Body, HttpStatus, HttpCode } from '@nestjs/common';
 import { AuthService } from '../services';
 import { GoogleAuthDto, SignInDto, SignUpDto } from '../dto';
 import { ResponseBuilder } from '../utils/responseBuilder/responseBuilder.service';

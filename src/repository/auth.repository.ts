@@ -50,13 +50,32 @@ export class AuthRepository {
   }
 
   /**
-   * Create a new user for sign-up.
-   * @param dto SignUpDto containing email, password, fullName
-   * @returns Newly created user with selected fields
+   * Create or return a user for Google login/signup.
+   * If a user with the given email exists, return it.
+   * Otherwise, create a new one with provider = GOOGLE.
+   *
+   * @param dto Google user data (email, fullName, etc.)
+   * @returns User object with selected fields
    */
-  async googleAuth(
-    dto: any,
-  ): Promise<{ id: string; email: string; createdAt: Date }> {
+  async googleAuth(dto: {
+    email: string;
+    fullName?: string;
+  }): Promise<{ id: string; email: string; createdAt: Date }> {
+    // Check if user already exists
+    const existingUser = await this.db.user.findUnique({
+      where: { email: dto.email },
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+      },
+    });
+
+    if (existingUser) {
+      return existingUser; // return existing user
+    }
+
+    // Create new user if not found
     return this.db.user.create({
       select: {
         id: true,
@@ -64,7 +83,8 @@ export class AuthRepository {
         createdAt: true,
       },
       data: {
-        ...dto,
+        email: dto.email,
+        fullName: dto.fullName,
         provider: 'GOOGLE',
       },
     });
